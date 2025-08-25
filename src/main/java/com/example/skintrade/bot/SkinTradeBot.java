@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.Comparator;
 
 @Component
 @Slf4j
@@ -30,6 +31,7 @@ public class SkinTradeBot extends TelegramLongPollingBot {
     private static final String COMMAND_HELP = "/help";
     private static final String COMMAND_TRADE = "/trade";
     private static final String COMMAND_HISTORY = "/history";
+    private static final String COMMAND_FEES = "/fees";
 
     private static final Pattern TRADE_PATTERN = Pattern.compile("([a-zA-Z]+)=([0-9]+(\\.[0-9]+)?)");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -71,6 +73,8 @@ public class SkinTradeBot extends TelegramLongPollingBot {
                 processTrade(chatId, username, messageText);
             } else if (messageText.startsWith(COMMAND_HISTORY)) {
                 sendTradeHistory(chatId, update.getMessage().getFrom().getId());
+            } else if (messageText.startsWith(COMMAND_FEES)) {
+                sendFeesMessage(chatId);
             } else {
                 sendMessage(chatId, "Unknown command. Type /help for available commands.");
             }
@@ -93,6 +97,7 @@ public class SkinTradeBot extends TelegramLongPollingBot {
                 "/trade site=price site=price ... - Calculate best/worst price, profit, and percentage\n" +
                 "  Example: /trade steam=100 csm=95 float=90\n" +
                 "  Supported platforms: steam, float, csm, csmm, csmar\n" +
+                "/fees - Show fee rates for all supported platforms\n" +
                 "/history - Show your last 10 saved trades\n" +
                 "/help - Show this help message\n\n" +
                 "You can also use the buttons below for quick access to commands.";
@@ -198,6 +203,34 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         return sb.toString();
     }
 
+    private void sendFeesMessage(Long chatId) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("💰 Platform Fee Rates\n\n");
+
+        // Get all platforms and sort them by fee rate (ascending)
+        List<Platform> platforms = Arrays.stream(Platform.values())
+                .sorted(Comparator.comparing(Platform::getFeeRate))
+                .collect(Collectors.toList());
+
+        for (Platform platform : platforms) {
+            // Format fee rate as percentage
+            String feePercentage = platform.getFeeRate().multiply(BigDecimal.valueOf(100))
+                    .setScale(0, RoundingMode.HALF_UP) + "%";
+
+            sb.append(String.format("• %s: %s\n", 
+                    platform.getCode().toUpperCase(), 
+                    feePercentage));
+        }
+
+        sb.append("\nExample calculation:\n");
+        sb.append("For a skin worth 100 on STEAM (15% fee):\n");
+        sb.append("- Fee amount: 15\n");
+        sb.append("- Net amount after fee: 85\n\n");
+        sb.append("Use /trade command to calculate profit between platforms.");
+
+        sendMessage(chatId, sb.toString());
+    }
+
     private void sendTradeHistory(Long chatId, Long userId) {
         try {
             List<Trade> trades = tradeService.getRecentTrades(userId);
@@ -287,11 +320,16 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         row1.add(new KeyboardButton(COMMAND_HELP));
         keyboard.add(row1);
 
-        // Second row with trade and history commands
+        // Second row with trade and fees commands
         KeyboardRow row2 = new KeyboardRow();
         row2.add(new KeyboardButton(COMMAND_TRADE + " steam=100 csm=95 float=90"));
-        row2.add(new KeyboardButton(COMMAND_HISTORY));
+        row2.add(new KeyboardButton(COMMAND_FEES));
         keyboard.add(row2);
+
+        // Third row with history command
+        KeyboardRow row3 = new KeyboardRow();
+        row3.add(new KeyboardButton(COMMAND_HISTORY));
+        keyboard.add(row3);
 
         keyboardMarkup.setKeyboard(keyboard);
         return keyboardMarkup;

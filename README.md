@@ -24,6 +24,7 @@ A Telegram bot that calculates profit/loss between multiple trading platforms fo
 - `/start` - Show greeting and usage instructions
 - `/trade site=price site=price ...` - Calculate best/worst price, profit, and percentage
   - Example: `/trade steam=100 csm=95 float=90`
+- `/fees` - Show fee rates for all supported platforms
 - `/history` - Show your last 10 saved trades
 - `/help` - Show usage instructions
 
