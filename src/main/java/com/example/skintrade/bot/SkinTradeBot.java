@@ -112,9 +112,18 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         Map<String, BigDecimal> platformPrices = new HashMap<>();
         Matcher matcher = TRADE_PATTERN.matcher(tradeParams);
 
+        // Track the first platform mentioned in the command
+        String firstPlatform = null;
+
         while (matcher.find()) {
             String platform = matcher.group(1).toLowerCase();
             BigDecimal price = new BigDecimal(matcher.group(2));
+
+            // Record the first platform we encounter
+            if (firstPlatform == null) {
+                firstPlatform = platform;
+            }
+
             platformPrices.put(platform, price);
         }
 
@@ -133,7 +142,7 @@ public class SkinTradeBot extends TelegramLongPollingBot {
             );
 
             // Format and send result
-            String result = formatTradeResult(trade);
+            String result = formatTradeResult(trade, firstPlatform);
             sendMessage(chatId, result);
 
         } catch (IllegalArgumentException e) {
@@ -142,7 +151,7 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         }
     }
 
-    private String formatTradeResult(Trade trade) {
+    private String formatTradeResult(Trade trade, String firstPlatform) {
         StringBuilder sb = new StringBuilder();
         sb.append("📊 Trade Analysis\n\n");
 
@@ -151,8 +160,20 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         for (Map.Entry<String, BigDecimal> entry : trade.getPrices().entrySet()) {
             String platformName = entry.getKey();
             BigDecimal price = entry.getValue();
-            BigDecimal netAmount = Platform.fromCode(platformName).calculateNetAmount(price);
-            BigDecimal fee = Platform.fromCode(platformName).calculateFee(price);
+
+            // Don't apply fees to the first platform (purchase platform)
+            BigDecimal fee;
+            BigDecimal netAmount;
+
+            if (platformName.equals(firstPlatform)) {
+                // No fee for the first platform
+                fee = BigDecimal.ZERO;
+                netAmount = price;
+            } else {
+                // Apply fees to other platforms
+                fee = Platform.fromCode(platformName).calculateFee(price);
+                netAmount = Platform.fromCode(platformName).calculateNetAmount(price);
+            }
 
             sb.append(String.format("• %s: %.2f (fee: %.2f, net: %.2f)\n", 
                     platformName, price, fee, netAmount));
