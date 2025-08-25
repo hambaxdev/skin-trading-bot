@@ -49,17 +49,17 @@ class TradeServiceTest {
                 .userId(userId)
                 .username(username)
                 .prices(platformPrices)
-                .bestPlatform("csmar")
-                .bestPrice(new BigDecimal("85.00"))
-                .worstPlatform("steam")
-                .worstPrice(new BigDecimal("100.00"))
-                .profit(new BigDecimal("0.15"))
-                .profitPercentage(new BigDecimal("0.18"))
+                .bestPlatform("steam")
+                .bestPrice(new BigDecimal("100.00"))
+                .worstPlatform("csmar")
+                .worstPrice(new BigDecimal("85.00"))
+                .profit(new BigDecimal("15.00"))
+                .profitPercentage(new BigDecimal("17.65"))
                 .build();
 
         when(tradeRepository.save(any(Trade.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Add csmar with the lowest price but highest net amount due to lowest fee
+        // Add csmar with the lowest price
         platformPrices.put("csmar", new BigDecimal("85.00"));
 
         // When
@@ -68,22 +68,22 @@ class TradeServiceTest {
         // Then
         verify(tradeRepository, times(1)).save(any(Trade.class));
 
-        // Calculate expected values
-        BigDecimal steamNet = Platform.STEAM.calculateNetAmount(new BigDecimal("100.00"));
-        BigDecimal csmarNet = Platform.CSMAR.calculateNetAmount(new BigDecimal("85.00"));
-        BigDecimal expectedProfit = csmarNet.subtract(steamNet);
+        // Calculate expected values based on raw prices (without commission)
+        BigDecimal steamPrice = new BigDecimal("100.00");
+        BigDecimal csmarPrice = new BigDecimal("85.00");
+        BigDecimal expectedProfit = steamPrice.subtract(csmarPrice);
         BigDecimal expectedPercentage = expectedProfit.multiply(BigDecimal.valueOf(100))
-                .divide(steamNet, 2, RoundingMode.HALF_UP);
+                .divide(csmarPrice, 2, RoundingMode.HALF_UP);
 
         // Verify calculations
         assertEquals(userId, result.getUserId());
         assertEquals(username, result.getUsername());
         assertEquals(platformPrices, result.getPrices());
-        assertEquals("csmar", result.getBestPlatform());
-        assertEquals(new BigDecimal("85.00"), result.getBestPrice());
-        assertEquals("steam", result.getWorstPlatform());
-        assertEquals(new BigDecimal("100.00"), result.getWorstPrice());
-        
+        assertEquals("steam", result.getBestPlatform());
+        assertEquals(new BigDecimal("100.00"), result.getBestPrice());
+        assertEquals("csmar", result.getWorstPlatform());
+        assertEquals(new BigDecimal("85.00"), result.getWorstPrice());
+
         // Compare with calculated values
         assertEquals(0, expectedProfit.compareTo(result.getProfit()));
         assertEquals(0, expectedPercentage.compareTo(result.getProfitPercentage()));

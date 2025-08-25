@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 public class TradeService {
 
     private final TradeRepository tradeRepository;
-    
+
     /**
      * Calculate profit/loss between multiple trading platforms and save the trade
      * 
@@ -33,34 +33,34 @@ public class TradeService {
     public Trade calculateAndSaveTrade(Long userId, String username, Map<String, BigDecimal> platformPrices) {
         // Validate platforms
         validatePlatforms(platformPrices.keySet());
-        
+
         // Calculate best and worst prices
         Map.Entry<String, BigDecimal> bestEntry = null;
         Map.Entry<String, BigDecimal> worstEntry = null;
-        
+
         for (Map.Entry<String, BigDecimal> entry : platformPrices.entrySet()) {
             String platformCode = entry.getKey();
             BigDecimal price = entry.getValue();
-            BigDecimal netAmount = Platform.fromCode(platformCode).calculateNetAmount(price);
-            
-            if (bestEntry == null || netAmount.compareTo(Platform.fromCode(bestEntry.getKey()).calculateNetAmount(bestEntry.getValue())) > 0) {
+
+            // Use raw price instead of net amount for comparing platforms
+            if (bestEntry == null || price.compareTo(bestEntry.getValue()) > 0) {
                 bestEntry = entry;
             }
-            
-            if (worstEntry == null || netAmount.compareTo(Platform.fromCode(worstEntry.getKey()).calculateNetAmount(worstEntry.getValue())) < 0) {
+
+            if (worstEntry == null || price.compareTo(worstEntry.getValue()) < 0) {
                 worstEntry = entry;
             }
         }
-        
-        // Calculate profit and percentage
-        BigDecimal bestNetAmount = Platform.fromCode(bestEntry.getKey()).calculateNetAmount(bestEntry.getValue());
-        BigDecimal worstNetAmount = Platform.fromCode(worstEntry.getKey()).calculateNetAmount(worstEntry.getValue());
-        BigDecimal profit = bestNetAmount.subtract(worstNetAmount);
-        
+
+        // Calculate profit and percentage using raw prices (without commission)
+        BigDecimal bestPrice = bestEntry.getValue();
+        BigDecimal worstPrice = worstEntry.getValue();
+        BigDecimal profit = bestPrice.subtract(worstPrice);
+
         // Calculate profit percentage (profit / worst price * 100)
         BigDecimal profitPercentage = profit.multiply(BigDecimal.valueOf(100))
-                .divide(worstNetAmount, 2, RoundingMode.HALF_UP);
-        
+                .divide(worstPrice, 2, RoundingMode.HALF_UP);
+
         // Create and save trade
         Trade trade = Trade.builder()
                 .userId(userId)
@@ -73,10 +73,10 @@ public class TradeService {
                 .profit(profit)
                 .profitPercentage(profitPercentage)
                 .build();
-        
+
         return tradeRepository.save(trade);
     }
-    
+
     /**
      * Get the most recent trades for a user
      * 
@@ -90,7 +90,7 @@ public class TradeService {
     public List<Trade> getRecentTrades(Long userId) {
         return getRecentTrades(userId, 10); // по умолчанию последние 10
     }
-    
+
     /**
      * Validate that all platform codes are valid
      * 
@@ -101,7 +101,7 @@ public class TradeService {
         List<String> invalidPlatforms = platformCodes.stream()
                 .filter(code -> !Platform.isValidPlatform(code))
                 .collect(Collectors.toList());
-        
+
         if (!invalidPlatforms.isEmpty()) {
             throw new IllegalArgumentException("Invalid platforms: " + String.join(", ", invalidPlatforms));
         }

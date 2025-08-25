@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.math.BigDecimal;
@@ -80,8 +83,8 @@ public class SkinTradeBot extends TelegramLongPollingBot {
     private void sendStartMessage(Long chatId, String firstName) {
         String message = "Hello, " + firstName + "! 👋\n\n" +
                 "Welcome to the CS:GO Skin Trade Bot. I can help you calculate profit/loss between different trading platforms.\n\n" +
-                "Type /help to see available commands.";
-        sendMessage(chatId, message);
+                "Type /help to see available commands or use the buttons below.";
+        sendMessage(chatId, message, true);
     }
 
     private void sendHelpMessage(Long chatId) {
@@ -91,8 +94,9 @@ public class SkinTradeBot extends TelegramLongPollingBot {
                 "  Example: /trade steam=100 csm=95 float=90\n" +
                 "  Supported platforms: steam, float, csm, csmm, csmar\n" +
                 "/history - Show your last 10 saved trades\n" +
-                "/help - Show this help message";
-        sendMessage(chatId, message);
+                "/help - Show this help message\n\n" +
+                "You can also use the buttons below for quick access to commands.";
+        sendMessage(chatId, message, true);
     }
 
     private void processTrade(Long chatId, String username, String messageText) {
@@ -159,12 +163,12 @@ public class SkinTradeBot extends TelegramLongPollingBot {
         // Best platform
         sb.append(String.format("Best platform: %s (%.2f)\n", 
                 trade.getBestPlatform(), 
-                Platform.fromCode(trade.getBestPlatform()).calculateNetAmount(trade.getBestPrice())));
+                trade.getBestPrice()));
 
         // Worst platform
         sb.append(String.format("Worst platform: %s (%.2f)\n", 
                 trade.getWorstPlatform(), 
-                Platform.fromCode(trade.getWorstPlatform()).calculateNetAmount(trade.getWorstPrice())));
+                trade.getWorstPrice()));
 
         // Profit and percentage
         sb.append(String.format("\nProfit: %.2f (%.2f%%)", 
@@ -229,14 +233,46 @@ public class SkinTradeBot extends TelegramLongPollingBot {
     }
 
     private void sendMessage(Long chatId, String text) {
+        sendMessage(chatId, text, false);
+    }
+
+    private void sendMessage(Long chatId, String text, boolean withKeyboard) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId.toString());
         message.setText(text);
+
+        if (withKeyboard) {
+            message.setReplyMarkup(createCommandsKeyboard());
+        }
 
         try {
             execute(message);
         } catch (TelegramApiException e) {
             log.error("Error sending message: {}", e.getMessage(), e);
         }
+    }
+
+    private ReplyKeyboardMarkup createCommandsKeyboard() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+        keyboardMarkup.setSelective(false);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+
+        // First row with start and help commands
+        KeyboardRow row1 = new KeyboardRow();
+        row1.add(new KeyboardButton(COMMAND_START));
+        row1.add(new KeyboardButton(COMMAND_HELP));
+        keyboard.add(row1);
+
+        // Second row with trade and history commands
+        KeyboardRow row2 = new KeyboardRow();
+        row2.add(new KeyboardButton(COMMAND_TRADE + " steam=100 csm=95 float=90"));
+        row2.add(new KeyboardButton(COMMAND_HISTORY));
+        keyboard.add(row2);
+
+        keyboardMarkup.setKeyboard(keyboard);
+        return keyboardMarkup;
     }
 }
